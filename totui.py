@@ -13,6 +13,8 @@ import pkg_resources
 import os
 import shutil
 
+from requests.exceptions import ConnectionError
+from urllib3.exceptions import NewConnectionError
 
 BASEDIR = os.path.join(os.path.expanduser('~'), '.totui')
 CONFFILE = os.path.join(BASEDIR, 'config.ini')
@@ -40,13 +42,21 @@ class TradeOgreAPI():
         
     def get_balances(self):
         endpoint = '/account/balances'
-        r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        try:
+            r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        except (ConnectionError,NewConnectionError) as e:
+            print(str(e))
+            return None
         return r.json()
     
     def get_ticker(self,coinl):
         coinpair = '-'.join([coinl[0], coinl[1]])
         endpoint = '/ticker/%s' % coinpair
-        r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        try:
+            r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        except (ConnectionError,NewConnectionError) as e:
+            print(str(e))
+            return None
         if r.status_code == 200:
             return r.json()
         else:
@@ -54,7 +64,11 @@ class TradeOgreAPI():
     
     def get_open_orders(self):
         endpoint = '/account/orders'
-        r = requests.post(self.apiURL + endpoint, auth=self.auth)
+        try:
+            r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        except (ConnectionError,NewConnectionError) as e:
+            print(str(e))
+            return None
         if r.status_code == 200:
             return r.json()
         else:
@@ -63,7 +77,11 @@ class TradeOgreAPI():
     def get_order_book(self,coinl):
         coinpair = '-'.join([coinl[0], coinl[1]])
         endpoint = '/orders/%s' % coinpair
-        r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        try:
+            r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        except (ConnectionError,NewConnectionError) as e:
+            print(str(e))
+            return None
         if r.status_code == 200:
             return r.json()
         else:
@@ -72,7 +90,11 @@ class TradeOgreAPI():
     def get_trade_history(self, coinl):
         coinpair = '-'.join([coinl[0], coinl[1]])
         endpoint = '/history/%s' % coinpair
-        r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        try:
+            r = requests.get(self.apiURL + endpoint, auth=self.auth)
+        except (ConnectionError,NewConnectionError) as e:
+            print(str(e))
+            return None
         if r.status_code == 200:
             return r.json()
         else:
@@ -574,7 +596,7 @@ class MainApp(npyscreen.FormWithMenus):
                                                                order['price'],order['quantity'], order['uuid']))
             return OrderList
         else:
-            return ['Bupski', 'Nada', 'None', 'Naught', 'Zilch', 'Zero', 'Nix', 'Nought', 'Nothing']
+            return None
         
         
     def getOrderBook(self,coinl):
@@ -641,7 +663,7 @@ class MainApp(npyscreen.FormWithMenus):
     
     def create(self):
         self.y,self.x = self.curses_pad.getmaxyx()
-        self.keypress_timeout = 70 
+        self.keypress_timeout = 85 
         #self.form = npyscreen.FormWithMenus(name = "Welcome to Npyscreen",)
         #t = F.add(npyscreen.BoxBasic, name = "Basic Box:", max_width=50, relx=2, max_height=3)
         #t.footer = "This is a footer"
@@ -781,25 +803,27 @@ class MainApp(npyscreen.FormWithMenus):
             if coin == "BTC":
                 btc = c.split('       ')[-1]
 
-                
-        for s in OpenOrders:
-            order_type.append(re.split(' +',s)[6])
-            btc_price.append(re.split(' +',s)[8])
-            btc_pair_qty.append(re.split(' +',s)[9])
-            #print("%s, %s, %s" % (s.split(' ')[6],s.split(' ')[10],s.split(' ')[12]))
-        
-        running_btc = 0.0
-        pending_btc = 0.0
-        for otype,price,qty in zip(order_type,btc_price,btc_pair_qty):
-            #print(otype)
-            if otype == "BUY":
-                #print("%s, %s, %s" % (otype, price,qty))
-                running_btc += float(price)*float(qty)
-        
-            else:
-                pending_btc += float(price)*float(qty)
-        available_btc = float(btc) - running_btc
-        return round(available_btc,8),round(pending_btc,8)
+        if OpenOrders:      
+            for s in OpenOrders:
+                order_type.append(re.split(' +',s)[6])
+                btc_price.append(re.split(' +',s)[8])
+                btc_pair_qty.append(re.split(' +',s)[9])
+                #print("%s, %s, %s" % (s.split(' ')[6],s.split(' ')[10],s.split(' ')[12]))
+            
+            running_btc = 0.0
+            pending_btc = 0.0
+            for otype,price,qty in zip(order_type,btc_price,btc_pair_qty):
+                #print(otype)
+                if otype == "BUY":
+                    #print("%s, %s, %s" % (otype, price,qty))
+                    running_btc += float(price)*float(qty)
+            
+                else:
+                    pending_btc += float(price)*float(qty)
+            available_btc = float(btc) - running_btc
+            return round(available_btc,8),round(pending_btc,8)
+        else:
+            return 0.0,0.0
                 
     def while_waiting(self):
         self.parentApp.coin_pair, self.parentApp.hcoin_pair, self.parentApp.tcoin_pair = self.getCoinPair()
@@ -815,9 +839,8 @@ class MainApp(npyscreen.FormWithMenus):
         self.timeWidget.display()
         
         self.OpenOrders.values = self.getOpenOrders()
-        if not self.OpenOrders:
-            self.OpenOrders.values = ['Bupkis']
         self.OpenOrders.display()
+        
         
         abtc, pbtc = self.calculate_available_btc(self.holdingCell.values, self.OpenOrders.values)
         self.availBTC.value = '{:f}'.format(abtc)
