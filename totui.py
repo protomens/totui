@@ -3,6 +3,7 @@
 import time
 import npyscreen
 import requests
+import re
 
 from requests.auth import HTTPBasicAuth
 from datetime import datetime
@@ -782,9 +783,10 @@ class MainApp(npyscreen.FormWithMenus):
 
                 
         for s in OpenOrders:
-            order_type.append(s.split(' ')[6])
-            btc_price.append(s.split(' ')[10])
-            btc_pair_qty.append(s.split(' ')[12])
+            order_type.append(re.split(' +',s)[6])
+            btc_price.append(re.split(' +',s)[8])
+            btc_pair_qty.append(re.split(' +',s)[9])
+            #print("%s, %s, %s" % (s.split(' ')[6],s.split(' ')[10],s.split(' ')[12]))
         
         running_btc = 0.0
         pending_btc = 0.0
