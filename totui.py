@@ -634,9 +634,9 @@ class MainApp(npyscreen.FormWithMenus):
     def getTradePairHistory(self,coinl):
         
         TradePairHistory = self.Togre.get_trade_history(coinl)
-        TradePairHistory.reverse()
         TradePairList = [] 
         if TradePairHistory:
+            TradePairHistory.reverse()
             for trade in TradePairHistory:
                 odate = datetime.fromtimestamp(trade['date'])
                 otime = odate.strftime("%I:%M:%S %p")
