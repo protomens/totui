@@ -103,33 +103,44 @@ class TradeOgreAPI():
     def place_buy_order(self,coinl,qty,price):
         market = '-'.join([coinl[0], coinl[1]])
         endpoint = '/order/buy'
-        
-        r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
+        try:
+            r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
+        except (ConnectionError, NewConnectionError) as e:
+            return {'success' : False, "error" : "Connection Error"}
         
         if r.status_code == 200:
             return r.json()
+        elif r.status_code == 405:
+            return {'success' : False, "error" : "HTTP 405: Method not allowed"}
         else:
-            return None
+            return {'success' : False, "error" : str(r.status_code)}
         
     def place_sell_order(self,coinl,qty,price):
         market = '-'.join([coinl[0], coinl[1]])
         endpoint = '/order/sell'
-        
-        r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
+        try: 
+            r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
+        except (ConnectionError, NewConnectionError) as e:
+            return {'success' : False, "error" : "Connection Error"}
         
         if r.status_code == 200:
             return r.json()
+        elif r.status_code == 405:
+            return {'success' : False, "error" : "HTTP 405: Method not allowed"}
         else:
-            return None
+            return {'success' : False, "error" : str(r.status_code)}
         
     def cancel_order(self, uuid):
         endpoint = '/order/cancel'
-        r = requests.post(self.apiURL + endpoint, data={'uuid' : uuid}, auth=self.auth)
+        try:
+            r = requests.post(self.apiURL + endpoint, data={'uuid' : uuid}, auth=self.auth)
+        except (ConnectionError, NewConnectionError) as e:
+            return {"success" : False}
         
         if r.status_code == 200:
             return r.json()
         else:
-            return None
+            return {"success" : False}
 
 class ToTUIApplication(npyscreen.NPSAppManaged):
     def onStart(self):
@@ -161,81 +172,7 @@ class ToTUIApplication(npyscreen.NPSAppManaged):
         # There's no harm in this, but we don't need it so:        
         self.resetHistory()
 
-class CancelOrder(npyscreen.ActionForm):
-    CONFIG = read_configuration(CONFFILE)
 
-    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
-
-    def getOpenOrders(self):
-        OpenOrders = self.Togre.get_open_orders()
-        
-        
-        OrderList = []
-        if OpenOrders:
-            for order in OpenOrders:
-                odate = datetime.fromtimestamp(order['date'])
-                order_date = odate.strftime("%a, %b %d %Y")
-                order_time = odate.strftime("%I:%M:%S %p")
-                
-                OrderList.append("{0:<10}{1:^6}{2:<10}{3:<12}{4:<12}{5:>40}".format(order_date + ' ' + order_time,
-                                                               order['type'].upper(),order['market'],
-                                                               order['price'],order['quantity'], order['uuid']))
-            return OrderList
-        else:
-            return ['Bupski', 'Nada', 'None', 'Naught', 'Zilch', 'Zero', 'Nix', 'Nought', 'Nothing']
-        
-        
-    
-    def create(self):
-        self.y,self.x = self.curses_pad.getmaxyx()
-        self.keypress_timeout = 30  
-
-        self.OpenOrders = self.getOpenOrders()
-        self.OpenOrdersBox = self.add(npyscreen.BoxTitle, name="Open Orders", values=self.OpenOrders,
-                                    max_height=14, width = self.x - 6, rely = self.y - 20,
-                                    scroll_exit = True,
-                                    contained_widget_arguments={
-                                        'color': "CAUTION", 
-                                        'widgets_inherit_color': True,}
-                                    )
-        self.order_num = self.add(npyscreen.TitleText, name = "Input Order Number to Cancel: ", value = None, begin_entry_at=33, use_two_lines = False)
-        
-    def on_ok(self):
-        onum = int(self.order_num.value)
-        if onum == 0 or onum > len(self.OpenOrders):
-            npyscreen.notify_wait("Order numbers start from 1 and cannot be greater than the number of open orders. Please re-try.")
-            self.order_num.value=None
-            self.display(clear=True)
-        else:
-            uuid = self.OpenOrders[onum -1].split(' ')[-1].lstrip()
-            JSON = self.Togre.cancel_order(uuid)
-            
-            if JSON:
-                if JSON['success']:
-                    npyscreen.notify_wait("Success! You will now return to the main screen. Your order should no longer be in the Open Orders box.")
-                    self.change_forms()
-                else: 
-                    npyscreen.notify_wait("Uh-oh! Something went wrong: " + JSON)
-                    self.order_num.value=None
-                    self.display(clear=True)
-            else:
-                npyscreen.notify_wait("Uh-oh! Something went wrong and we don't know why. Please re-try." )
-                self.order_num.value=None
-                self.display(clear=True)
-                
-    def while_waiting(self):
-        self.OpenOrdersBox.values = self.getOpenOrders()
-        if not self.OpenOrdersBox.values:
-            self.OpenOrdersBox.values = ['Bupkis']
-        self.OpenOrdersBox.display()
-        
-    def change_forms(self, *args, **keywords):    
-        change_to = "MAIN"
-            
-        self.parentApp.change_form(change_to)
-        
-    def on_cancel(self):
-        self.change_forms()
 class DepositAddress(npyscreen.ActionForm):
     def create(self):
         
@@ -416,11 +353,8 @@ class BuyPair(npyscreen.ActionForm):
         else:
             npyscreen.notify_wait("Uh-oh! Something went wrong. Check your values and try again. REASON: " + response['error'] )
             self.coin_pair.value = "BTC,XMR"
-            self.coin_pair.edit()
             self.amount.value = None
-            self.amount.edit()
             self.price.value = None
-            self.price.edit
             self.display(clear=True)
         
         self.change_forms()
@@ -519,11 +453,8 @@ class SellPair(npyscreen.ActionForm):
         else:
             npyscreen.notify_wait("Uh-oh! Something went wrong. Check your values and try again. REASON: " + response['error'] )
             self.coin_pair.value = "BTC,XMR"
-            self.coin_pair.edit()
             self.amount.value = None
-            self.amount.edit()
             self.price.value = None
-            self.price.edit
             self.display(clear=True)
         
         self.change_forms()
@@ -547,7 +478,84 @@ class SellPair(npyscreen.ActionForm):
         
     def on_cancel(self):
         self.change_forms()
-   
+        
+class CancelOrder(npyscreen.ActionForm):
+    CONFIG = read_configuration(CONFFILE)
+
+    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+
+    def getOpenOrders(self):
+        OpenOrders = self.Togre.get_open_orders()
+        
+        
+        OrderList = []
+        if OpenOrders:
+            for order in OpenOrders:
+                odate = datetime.fromtimestamp(order['date'])
+                order_date = odate.strftime("%a, %b %d %Y")
+                order_time = odate.strftime("%I:%M:%S %p")
+                
+                OrderList.append("{0:<10}{1:^6}{2:<10}{3:<12}{4:<12}{5:>40}".format(order_date + ' ' + order_time,
+                                                               order['type'].upper(),order['market'],
+                                                               order['price'],order['quantity'], order['uuid']))
+            return OrderList
+        else:
+            return ['Error: url request (612)']
+        
+        
+    
+    def create(self):
+        self.y,self.x = self.curses_pad.getmaxyx()
+        self.keypress_timeout = 30  
+
+        self.OpenOrders = self.getOpenOrders()
+        self.OpenOrdersBox = self.add(npyscreen.BoxTitle, name="Open Orders", values=self.OpenOrders,
+                                    max_height=14, width = self.x - 6, rely = self.y - 20,
+                                    scroll_exit = True,
+                                    contained_widget_arguments={
+                                        'color': "CAUTION", 
+                                        'widgets_inherit_color': True,}
+                                    )
+        self.order_num = self.add(npyscreen.TitleText, name = "Input Order Number to Cancel: ", value = None, begin_entry_at=33, use_two_lines = False)
+        
+    def on_ok(self):
+        onum = int(self.order_num.value)
+        if onum == 0 or onum > len(self.OpenOrders) or not isinstance(onum,int):
+            npyscreen.notify_wait("Order numbers start from 1 and cannot be greater than the number of open orders and must be an integer. Please re-try.")
+            self.order_num.value=None
+            self.display(clear=True)
+        else:
+            uuid = self.OpenOrders[onum -1].split(' ')[-1].lstrip()
+            JSON = self.Togre.cancel_order(uuid)
+            
+            if JSON:
+                if JSON['success']:
+                    npyscreen.notify_wait("Success! You will now return to the main screen. Your order should no longer be in the Open Orders box.")
+                    self.change_forms()
+                else: 
+                    npyscreen.notify_wait("Uh-oh! Something went wrong: " + JSON)
+                    self.order_num.value=None
+                    self.display(clear=True)
+            else:
+                npyscreen.notify_wait("Uh-oh! Something went wrong and we don't know why. Please re-try." )
+                self.order_num.value=None
+                self.display(clear=True)
+                
+    def while_waiting(self):
+        self.OpenOrdersBox.values = self.getOpenOrders()
+        if not self.OpenOrdersBox.values:
+            self.OpenOrdersBox.values = ['Bupkis']
+        self.OpenOrdersBox.display()
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+        
+        
 class MainApp(npyscreen.FormWithMenus):
     CONFIG = read_configuration(CONFFILE)
 
@@ -665,7 +673,7 @@ class MainApp(npyscreen.FormWithMenus):
     
     def create(self):
         self.y,self.x = self.curses_pad.getmaxyx()
-        self.keypress_timeout = 85 
+        self.keypress_timeout = 55 
         #self.form = npyscreen.FormWithMenus(name = "Welcome to Npyscreen",)
         #t = F.add(npyscreen.BoxBasic, name = "Basic Box:", max_width=50, relx=2, max_height=3)
         #t.footer = "This is a footer"
