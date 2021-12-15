@@ -558,12 +558,14 @@ class MainApp(npyscreen.FormWithMenus):
         balances = self.Togre.get_balances()
 
         clist = []
-        for coin in balances['balances'].keys():
-            if balances['balances'][coin] == "0.00000000":
-                continue
-            clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
-        return clist 
-    
+        if balances:
+            for coin in balances['balances'].keys():
+                if balances['balances'][coin] == "0.00000000":
+                    continue
+                clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
+            return clist
+        return None 
+        
     def getTicker(self,coinl):
         ticker = self.Togre.get_ticker(coinl)
         
