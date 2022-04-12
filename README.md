@@ -7,7 +7,7 @@ A textual user interface (TUI) for the popular TradeOgre exchange
 
 ## Install (pip)
 ```shell
-pip3 install totui==1.7.4
+pip3 install totui
 ```
 
 Configure `~/.totui/config.ini` (see below), then run
