@@ -1,0 +1,2 @@
+[console_scripts]
+totui = totui.totui:main

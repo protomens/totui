@@ -1,3 +1,18 @@
+Metadata-Version: 2.1
+Name: totui
+Version: 1.7.6
+Summary: TradeOgre TUI
+Home-page: https://github.com/protomens/totui
+Author: protomens
+Author-email: protomens@eratosthen.es
+License: MIT
+Keywords: crypto tui tradeogre bitcoin monero haven dero
+Platform: UNKNOWN
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
 # totui (Trade Ogre TUI)
 A textual user interface (TUI) for the popular TradeOgre exchange
 
@@ -72,6 +87,8 @@ If you feel so inclined as to leave a tip this app will cotinue in development a
 `DERO: `
 
 `BTC: bc1q70qdes2xrxyc03fgwekmmt8j2rds0fmg3dehth`
+
+
 
 
 

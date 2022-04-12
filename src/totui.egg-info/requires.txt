@@ -1,0 +1,6 @@
+requests
+npyscreen
+undetected_chromedriver
+selenium
+bs4
+urllib3

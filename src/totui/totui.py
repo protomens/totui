@@ -2,161 +2,76 @@
 # encoding: utf-8
 import time
 import npyscreen
-import requests
 import re
+import decimal
 
-from requests.auth import HTTPBasicAuth
 from datetime import datetime
 import configparser
 from time import time
 import pkg_resources
 import os
 import shutil
+from curses import KEY_F5
 
-from requests.exceptions import ConnectionError
-from urllib3.exceptions import NewConnectionError
+
+from totui_selenium.totui_selenium import SeleniumTradeOgre
+from tradeogre_api.tradeogre_api import TradeOgreAPI
 
 BASEDIR = os.path.join(os.path.expanduser('~'), '.totui')
 CONFFILE = os.path.join(BASEDIR, 'config.ini')
+COINSFILE = os.path.join(BASEDIR, 'coins.list')
+LOGOFILE = os.path.join(BASEDIR, 'logo.uni')
 CONFIG = configparser.ConfigParser()
+TOTUIVERSION = "TOTUI v1.7.6"
 
 def read_configuration(confpath):
     """Read the configuration file at given path."""
     # copy our default config file
-    if not os.path.isfile(confpath):
-        defaultconf = pkg_resources.resource_filename(__name__, 'config.ini')
-        shutil.copyfile(defaultconf, CONFFILE)
+    
+    if os.path.isdir(BASEDIR):
+        if not os.path.isfile(confpath):
+            defaultconf = pkg_resources.resource_filename(__name__, 'config.ini')
+            defaultcoins = pkg_resources.resource_filename(__name__, 'coins.list')
+            defaultlogo = pkg_resources.resource_filename(__name__, 'logo.uni')
+            shutil.copyfile(defaultconf, CONFFILE)
+            shutil.copyfile(defaultcoins, COINSFILE)
+            shutil.copyfile(defaultlogo, LOGOFILE)
 
+    else:
+        os.mkdir(BASEDIR)
+        defaultconf = pkg_resources.resource_filename(__name__, 'config.ini')
+        defaultcoins = pkg_resources.resource_filename(__name__, 'coins.list')
+        defaultlogo = pkg_resources.resource_filename(__name__, 'logo.uni')
+        shutil.copyfile(defaultconf, CONFFILE)
+        shutil.copyfile(defaultcoins, COINSFILE)
+        shutil.copyfile(defaultlogo, LOGOFILE)
+        
     CONFIG.read(confpath)
     return CONFIG
 
+class BoxTitle(npyscreen.BoxTitle):
+    _contained_widget = npyscreen.SelectOne
 
-class TradeOgreAPI():
-    apiURL = "https://tradeogre.com/api/v1"
-    auth=""
-    
-    def __init__(self, key, secret):
-        self.key = key
-        self.secret = secret
-        self.auth = HTTPBasicAuth(self.key,self.secret)
-        
-    def get_balances(self):
-        endpoint = '/account/balances'
-        try:
-            r = requests.get(self.apiURL + endpoint, auth=self.auth)
-        except (ConnectionError,NewConnectionError) as e:
-            print(str(e))
-            return None
-        return r.json()
-    
-    def get_ticker(self,coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
-        endpoint = '/ticker/%s' % coinpair
-        try:
-            r = requests.get(self.apiURL + endpoint, auth=self.auth)
-        except (ConnectionError,NewConnectionError) as e:
-            print(str(e))
-            return None
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return None
-    
-    def get_open_orders(self):
-        endpoint = '/account/orders'
-        try:
-            r = requests.get(self.apiURL + endpoint, auth=self.auth)
-        except (ConnectionError,NewConnectionError) as e:
-            print(str(e))
-            return None
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return None
-        
-    def get_order_book(self,coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
-        endpoint = '/orders/%s' % coinpair
-        try:
-            r = requests.get(self.apiURL + endpoint, auth=self.auth)
-        except (ConnectionError,NewConnectionError) as e:
-            print(str(e))
-            return None
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return None
-        
-    def get_trade_history(self, coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
-        endpoint = '/history/%s' % coinpair
-        try:
-            r = requests.get(self.apiURL + endpoint, auth=self.auth)
-        except (ConnectionError,NewConnectionError) as e:
-            print(str(e))
-            return None
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return None
-        
-    def place_buy_order(self,coinl,qty,price):
-        market = '-'.join([coinl[0], coinl[1]])
-        endpoint = '/order/buy'
-        try:
-            r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
-        except (ConnectionError, NewConnectionError) as e:
-            return {'success' : False, "error" : "Connection Error"}
-        
-        if r.status_code == 200:
-            return r.json()
-        elif r.status_code == 405:
-            return {'success' : False, "error" : "HTTP 405: Method not allowed"}
-        else:
-            return {'success' : False, "error" : str(r.status_code)}
-        
-    def place_sell_order(self,coinl,qty,price):
-        market = '-'.join([coinl[0], coinl[1]])
-        endpoint = '/order/sell'
-        try: 
-            r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)
-        except (ConnectionError, NewConnectionError) as e:
-            return {'success' : False, "error" : "Connection Error"}
-        
-        if r.status_code == 200:
-            return r.json()
-        elif r.status_code == 405:
-            return {'success' : False, "error" : "HTTP 405: Method not allowed"}
-        else:
-            return {'success' : False, "error" : str(r.status_code)}
-        
-    def cancel_order(self, uuid):
-        endpoint = '/order/cancel'
-        try:
-            r = requests.post(self.apiURL + endpoint, data={'uuid' : uuid}, auth=self.auth)
-        except (ConnectionError, NewConnectionError) as e:
-            return {"success" : False}
-        
-        if r.status_code == 200:
-            return r.json()
-        else:
-            return {"success" : False}
 
 class ToTUIApplication(npyscreen.NPSAppManaged):
     def onStart(self):
-        CONFIG = read_configuration(CONFFILE)
+        global CONFIG
         
         self.coin_pair = CONFIG['pair'].get('order_book','').split(',')
         self.hcoin_pair = CONFIG['pair'].get('trade_history', '').split(',')
         self.tcoin_pair = CONFIG['pair'].get('ticker', '').split(',')
-        self.addForm('MAIN', MainApp, name="Tradeogre Main", color="STANDOUT")
+        self.addForm('MAIN', MainApp, name=TOTUIVERSION, color="STANDOUT")
         self.addForm("PAIR", EditPair, name="Trading Pair Books", color="IMPORTANT")
         self.addForm("HISTORY", EditHistoryPair, name="Trading Pair History", color="IMPORTANT")
         self.addForm("TICKER", EditTickerPair, name="Ticker Pair", color="IMPORTANT")
         self.addForm("BUY",  BuyPair, name="Buy Pair", color="IMPORTANT")
         self.addForm("SELL", SellPair, name="Sell Pair", color="IMPORTANT")
         self.addForm("CANCEL", CancelOrder, name="Cancel Order", color="IMPORTANT")
-        self.addForm("DEPOSIT", DepositAddress, name="Add Deposit Addressr", color="IMPORTANT")
+        self.addForm("DEPOSIT", GetCoinDepositAddress, name="Add Deposit Address", color="IMPORTANT")
+        self.addForm("WITHDRAW", WithdrawCoin, name="Withdraw", color="IMPORTANT")
+        self.addForm("DHISTORY", GetDepositHistory, name="Deposit History", color="IMPORTANT")
+        self.addForm("WHISTORY", GetWithdrawHistory, name="Withdraw History", color="IMPORTANT")
+        self.addForm("THISTORY", GetTradeHistory, name="Trades History", color="IMPORTANT")
 
         #self.change_form("MAIN")
     def onCleanExit(self):
@@ -172,8 +87,275 @@ class ToTUIApplication(npyscreen.NPSAppManaged):
         # There's no harm in this, but we don't need it so:        
         self.resetHistory()
 
+class WithdrawCoin(npyscreen.ActionForm):
+    coin = ''
+    amount = ''
+    address = ''
+    two_factor_authentication = ''
+    Togre = None
+    prevCoin = ''
+    balances = []
+    
+    def getBalances(self):
+        
+        balances = self.Togre.get_balances()
+
+        clist = []
+        if balances:
+            for coin in balances['balances'].keys():
+                if balances['balances'][coin] == "0.00000000":
+                    continue
+                clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
+            return clist
+        return None 
+
+    def create(self):
+        global TS
+        global CONFIG
+
+        self.y,self.x = self.curses_pad.getmaxyx()
+
+        self.keypress_timeout = 15  
+
+        
+        self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+
+        self.balances = self.getBalances()
+        
+        self.CoinBalances = self.add(BoxTitle, name="Available Coin Balances", values = self.balances,
+                            max_height=self.y - 40, width = 38, rely = 5, relx = 36,
+                            scroll_exit = True,
+                            contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,}
+                            )
+        self.add(npyscreen.FixedText, name="Please fill in values shown below. Be sure to check the status of the wallet below and ensure it is Online",
+                                      value="Please fill in values shown below. Be sure to check the status of the wallet below and ensure it is Online", rely = self.y - 35  )
+
+        self.coin     = self.add(npyscreen.TitleText, name = "Coin: ", value=None, use_two_lines = False, begin_entry_at = 18, rely = self.y - 34)
+        self.amount   = self.add(npyscreen.TitleText, name = "Amount: ", value=None, use_two_lines = False, begin_entry_at = 18, rely = self.y - 33)
+        self.address  = self.add(npyscreen.TitleText, name = "Withdraw Address: ", value=None, use_two_lines = False, begin_entry_at = 18, rely = self.y - 32)
+        self.two_factor_authentication = self.add(npyscreen.TitleText, name = "2FA: ", value=None, use_two_lines = False, begin_entry_at = 18, rely = self.y - 31)
+        self.wallet_status = self.add(npyscreen.FixedText, name="Wallet:", value="Wallet: ", use_two_lines=False, begin_entry_at = 10, rely = self.y - 28 )
+
+        
+    def on_ok(self):
+        global TS
+        global CONFIG
+        
+        retvalue = TS.tradeogre_withdraw(self.coin.value, self.amount.value, self.address.value)
+        
+        totp_return = TS.tradeogre_totp(self.two_factor_authentication.value)
+        
+        if retvalue['success'] and totp_return['success']:
+            npyscreen.notify_wait("Success!\n %s %s\n has been deposited to:\n %s" % (self.amount.value, self.coin.value, self.address.value))
+        else:
+            npyscreen.notify_wait("ERROR.\n" + retvalue['message'] + '\n' + totp_return['message'])
+    
+
+        self.change_forms()
+        
+    def while_waiting(self):
+        global TS
+        
+        self.CoinBalances.values = self.getBalances()
+        self.CoinBalances.display()
+        
+        if self.coin.value:
+            if self.prevCoin != self.coin.value:
+                self.wallet_status.value = "Wallet (%s): Checking..." % self.coin.value
+                self.wallet_status.display()
+                wStatus = TS.tradeogre_getWallet_status(self.coin.value)
+                self.wallet_status.value = "Wallet (%s): %s " % (self.coin.value,  wStatus)
+                self.wallet_status.display()
+                self.prevCoin = self.coin.value  
+        try:
+            if self.CoinBalances.value[0] >= 0:
+                self.coin.value, self.amount.value = re.split(' +',self.balances[self.CoinBalances.value[0]])
+                self.coin.display()
+                self.amount.display()
+        except IndexError:
+            pass
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+        
+
+class GetCoinDepositAddress(npyscreen.ActionForm):
+    coin = ''
+    
+    def create(self):
+        global TS
+        self.y,self.x = self.curses_pad.getmaxyx()
+        self.keypress_timeout = 15  
+
+        self.CoinList = self.add(BoxTitle, name="Available Coin List", values = TS.coins,
+                            max_height=self.y - 28, width = 25, rely = 18, relx = 36,
+                            scroll_exit = True,
+                            contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,}
+                            )
+        
+        
+
+        
+        self.coin   = self.add(npyscreen.TitleText, name = "Coin: ", value="", use_two_lines = False, begin_entry_at = 7)
+    
+    def while_waiting(self):
+        try:
+            if self.CoinList.value[0] >= 0:
+                self.coin.value = TS.coins[self.CoinList.value[0]]
+                self.coin.display()
+            
+        except IndexError:
+            pass
+    def on_ok(self):
+        global TS
+        global CONFIG
+        
+        address = TS.tradeogre_getDeposit_address(self.coin.value)
+        
+        CONFIG.set('address',self.coin.value.lower(),address)
+        
+        FILE = open(CONFFILE,'w')
+        CONFIG.write(FILE)
+        
+        self.change_forms()
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+        
+class GetDepositHistory(npyscreen.ActionForm):
+    
+    def create(self):
+        global TS
+
+        self.y,self.x = self.curses_pad.getmaxyx()
+        self.add_handlers({KEY_F5: self.keyrefresh})
+        
+        #TS.tradeogre_getDeposit_history()
+        self.DepositList = self.add(npyscreen.BoxTitle, name="Deposit History", values = None,
+                            max_height=self.y - 28, width = 150, rely = 5, relx = 10,
+                            scroll_exit = True,
+                            contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,}
+                            )
+        
+        
+
+        
+        self.coin   = self.add(npyscreen.FixedText, name = "Press F5 to refresh", value="Press F5 to refresh", use_two_lines = False)
+        
+    def keyrefresh(self, *args, **keywords):
+        global TS
+        self.DepositList.values = TS.tradeogre_getDeposit_history()
+        self.DepositList.display()
+        
+    def on_ok(self):
+        
+        self.change_forms()
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+            
+            
+class GetWithdrawHistory(npyscreen.ActionForm):
+    
+    def create(self):
+        global TS
+
+        self.y,self.x = self.curses_pad.getmaxyx()
+        self.add_handlers({KEY_F5: self.keyrefresh})
+        
+        #TS.tradeogre_getDeposit_history()
+        self.WithdrawList = self.add(npyscreen.BoxTitle, name="Withdraw History", values = None,
+                            max_height=self.y - 28, width = 150, rely = 5, relx = 10,
+                            scroll_exit = True,
+                            contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,}
+                            )
+        
+        
+
+        
+        self.coin   = self.add(npyscreen.FixedText, name = "Press F5 to refresh", value="Press F5 to refresh", use_two_lines = False)
+        
+    def keyrefresh(self, *args, **keywords):
+        global TS
+        self.WithdrawList.values = TS.tradeogre_getWithdraw_history()
+        self.WithdrawList.display()
+        
+    def on_ok(self):
+        
+        self.change_forms()
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+
+class GetTradeHistory(npyscreen.ActionForm):
+    
+    def create(self):
+
+        self.y,self.x = self.curses_pad.getmaxyx()
+        self.add_handlers({KEY_F5: self.keyrefresh})
+        
+        #TS.tradeogre_getDeposit_history()
+        self.TradeList = self.add(npyscreen.BoxTitle, name="Trades History", values = None,
+                            max_height=self.y - 28, width = 150, rely = 5, relx = 10,
+                            scroll_exit = True,
+                            contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,}
+                            )
+        
+        
+
+        
+        self.coin   = self.add(npyscreen.FixedText, name = "Press F5 to refresh", value="Press F5 to refresh", use_two_lines = False)
+        
+    def keyrefresh(self, *args, **keywords):
+        global TS
+        self.TradeList.values = TS.tradeogre_getTrade_history()
+        self.TradeList.display()
+        
+    def on_ok(self):
+        
+        self.change_forms()
+        
+    def change_forms(self, *args, **keywords):    
+        change_to = "MAIN"
+            
+        self.parentApp.change_form(change_to)
+        
+    def on_cancel(self):
+        self.change_forms()
+  
 
 class DepositAddress(npyscreen.ActionForm):
+    
     def create(self):
         
         self.deposit_address   = self.add(npyscreen.TitleText, name = "Coin,Address: ", value="ETH,0x", use_two_lines = False, begin_entry_at = 16)
@@ -183,7 +365,8 @@ class DepositAddress(npyscreen.ActionForm):
 
     def on_ok(self):
         coin,address = self.deposit_address.value.split(',')
-        CONFIG = read_configuration(CONFFILE)
+        global CONFIG
+        
         CONFIG.set('address',coin,address)
         
         FILE = open(CONFFILE,'w')
@@ -200,6 +383,7 @@ class DepositAddress(npyscreen.ActionForm):
         self.change_forms()
 
 class EditPair(npyscreen.ActionForm):
+    
     def create(self):
         self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="BTC,XMR")
         self.add_handlers({"^Q": self.change_forms})
@@ -208,8 +392,8 @@ class EditPair(npyscreen.ActionForm):
 
     def on_ok(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')
+        global CONFIG
         
-        CONFIG = read_configuration(CONFFILE)
         CONFIG.set('pair',"order_book",self.coin_pair.value)
         
         FILE = open(CONFFILE,'w')
@@ -226,6 +410,7 @@ class EditPair(npyscreen.ActionForm):
         self.change_forms()
         
 class EditTickerPair(npyscreen.ActionForm):
+    
     def create(self):
         self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="BTC,XMR")
         self.add_handlers({"^Q": self.change_forms})
@@ -234,8 +419,8 @@ class EditTickerPair(npyscreen.ActionForm):
 
     def on_ok(self):
         self.parentApp.tcoin_pair = self.coin_pair.value.split(',')
-        
-        CONFIG = read_configuration(CONFFILE)
+           
+        global CONFIG
         CONFIG.set('pair',"ticker",self.coin_pair.value)
         
         FILE = open(CONFFILE,'w')
@@ -262,7 +447,7 @@ class EditHistoryPair(npyscreen.ActionForm):
     def on_ok(self):
         self.parentApp.hcoin_pair = self.hcoin_pair.value.split(',')
         
-        CONFIG = read_configuration(CONFFILE)
+        global CONFIG
         CONFIG.set('pair',"trade_history",self.hcoin_pair.value)
         
         FILE = open(CONFFILE,'w')
@@ -280,14 +465,14 @@ class EditHistoryPair(npyscreen.ActionForm):
   
         
 class BuyPair(npyscreen.ActionForm):
-    CONFIG = read_configuration(CONFFILE)
-
-    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+    
+    #global CONFIG
     coin_pair=''
     amount=''
     price=''
     response = 0
-    
+    Togre = None
+
     def getOrderBook(self,coinl):
         OrderBook = self.Togre.get_order_book(coinl)
         
@@ -320,11 +505,14 @@ class BuyPair(npyscreen.ActionForm):
         
         
     def create(self):
+        global CONFIG
+        self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+
         self.keypress_timeout = 30  
 
         self.y,self.x = self.curses_pad.getmaxyx()
 
-        self.add(npyscreen.TitleText, name="Press ^Q to quit and ^P to display orderbook of Pair", value=None, rely = self.y - 9 )
+        self.add(npyscreen.TitleText, name="Press ^Q to quit and type in your order pair to display Order Book. i.e, BTC,XHV", value=None, rely = self.y - 9 )
         self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR",)
         self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None)
         self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None)
@@ -339,19 +527,20 @@ class BuyPair(npyscreen.ActionForm):
                                 'color': "WARNING", 
                                 'widgets_inherit_color': True,}
                             )
+        self.order_book()
         
         
     def on_ok(self):
         self.parentApp.coin_pair = coinl = self.coin_pair.value.split(',')
-        
+        decimal.getcontext().prec = 8
         if coinl and self.amount.value and self.price.value:
-            response = self.Togre.place_buy_order(coinl, self.amount.value, round(float(self.price.value),8))
+            response = self.Togre.place_buy_order(coinl, self.amount.value, str(decimal.Decimal(self.price.value)))
             
         if response['success']:
             npyscreen.notify_wait("Success! You will now return to the main screen. Your recent order should be in the bottom dialog box.")
             self.change_forms()
         else:
-            npyscreen.notify_wait("Uh-oh! Something went wrong. Check your values and try again. REASON: " + response['error'] )
+            npyscreen.notify_wait("Uh-oh! Something went wrong. Check your values and try again. REASON: " + response['error'] + "  VALUE: %s" % str(decimal.Decimal(self.price.value) ))
             self.coin_pair.value = "BTC,XMR"
             self.amount.value = None
             self.price.value = None
@@ -362,13 +551,13 @@ class BuyPair(npyscreen.ActionForm):
     def order_book(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
-        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0], "-",self.parentApp.coin_pair[1]])
+        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
         
     def while_waiting(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
-        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0], "-",self.parentApp.coin_pair[1]])
+        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
            
     def change_forms(self, *args, **keywords):    
@@ -380,14 +569,25 @@ class BuyPair(npyscreen.ActionForm):
         self.change_forms()
         
 class SellPair(npyscreen.ActionForm):
-    CONFIG = read_configuration(CONFFILE)
-
-    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
     coin_pair=''
     amount=''
     price=''
     response = 0
+    Togre = None
     
+    def getBalances(self):
+        
+        balances = self.Togre.get_balances()
+
+        clist = []
+        if balances:
+            for coin in balances['balances'].keys():
+                if balances['balances'][coin] == "0.00000000":
+                    continue
+                clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
+            return clist
+        return None 
+      
     def getOrderBook(self,coinl):
         OrderBook = self.Togre.get_order_book(coinl)
         
@@ -420,11 +620,14 @@ class SellPair(npyscreen.ActionForm):
         
         
     def create(self):
+        global CONFIG
+        self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+
         self.keypress_timeout = 30  
 
         self.y,self.x = self.curses_pad.getmaxyx()
 
-        self.add(npyscreen.TitleText, name="Press ^Q to quit and ^P to display orderbook of Pair", value=None, rely = self.y - 9 )
+        self.add(npyscreen.TitleText, name="Press ^Q to quit and type in order pair to display Order Book i.e. BTC,XHV", value=None, rely = self.y - 9 )
         self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR",)
         self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None)
         self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None)
@@ -437,15 +640,22 @@ class SellPair(npyscreen.ActionForm):
                             scroll_exit = True,
                             contained_widget_arguments={
                                 'color': "WARNING", 
-                                'widgets_inherit_color': True,}
-                            )
-        
+                                'widgets_inherit_color': True,})
+        clist = []
+        self.holdingCell = self.add(npyscreen.BoxTitle, name="Holdings", values = clist, rely=self.y - 28, relx=116, 
+                        max_width=30, max_height=15,scroll_exit = True,
+                        contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,})
+                            
+        self.order_book()
         
     def on_ok(self):
         self.parentApp.coin_pair = coinl = self.coin_pair.value.split(',')
-        
+        decimal.getcontext().prec = 8
+
         if coinl and self.amount.value and self.price.value:
-            response = self.Togre.place_sell_order(coinl, self.amount.value, round(float(self.price.value),8))
+            response = self.Togre.place_sell_order(coinl, self.amount.value, str(decimal.Decimal(self.price.value)))
             
         if response['success']:
             npyscreen.notify_wait("Success! You will now return to the main screen. Your recent order should be in the bottom dialog box.")
@@ -462,14 +672,17 @@ class SellPair(npyscreen.ActionForm):
     def order_book(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
-        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0], "-",self.parentApp.coin_pair[1]])
+        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
         
     def while_waiting(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
-        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0], "-",self.parentApp.coin_pair[1]])
+        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
+        
+        self.holdingCell.values = self.getBalances()
+        self.holdingCell.display()
            
     def change_forms(self, *args, **keywords):    
         change_to = "MAIN"
@@ -480,35 +693,27 @@ class SellPair(npyscreen.ActionForm):
         self.change_forms()
         
 class CancelOrder(npyscreen.ActionForm):
-    CONFIG = read_configuration(CONFFILE)
-
-    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
-
+    Togre = None
+    OpenOrders = None
+      
     def getOpenOrders(self):
-        OpenOrders = self.Togre.get_open_orders()
+        global TS
+        TS.clear_OpenOrders()
+        TS.get_tradeogre_orders()
         
+        OrdersList = TS.format_open_orders()
         
-        OrderList = []
-        if OpenOrders:
-            for order in OpenOrders:
-                odate = datetime.fromtimestamp(order['date'])
-                order_date = odate.strftime("%a, %b %d %Y")
-                order_time = odate.strftime("%I:%M:%S %p")
-                
-                OrderList.append("{0:<10}{1:^6}{2:<10}{3:<12}{4:<12}{5:>40}".format(order_date + ' ' + order_time,
-                                                               order['type'].upper(),order['market'],
-                                                               order['price'],order['quantity'], order['uuid']))
-            return OrderList
-        else:
-            return ['Error: url request (612)']
+        return OrdersList
         
-        
-    
-    def create(self):
-        self.y,self.x = self.curses_pad.getmaxyx()
-        self.keypress_timeout = 30  
 
-        self.OpenOrders = self.getOpenOrders()
+    def create(self):
+        global CONFIG
+        self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+        self.keypress_timeout = 30 
+
+        self.y,self.x = self.curses_pad.getmaxyx()
+        #self.keypress_timeout = 30  
+
         self.OpenOrdersBox = self.add(npyscreen.BoxTitle, name="Open Orders", values=self.OpenOrders,
                                     max_height=14, width = self.x - 6, rely = self.y - 20,
                                     scroll_exit = True,
@@ -533,7 +738,7 @@ class CancelOrder(npyscreen.ActionForm):
                     npyscreen.notify_wait("Success! You will now return to the main screen. Your order should no longer be in the Open Orders box.")
                     self.change_forms()
                 else: 
-                    npyscreen.notify_wait("Uh-oh! Something went wrong: " + JSON)
+                    npyscreen.notify_wait("Uh-oh! Something went wrong.")
                     self.order_num.value=None
                     self.display(clear=True)
             else:
@@ -542,9 +747,8 @@ class CancelOrder(npyscreen.ActionForm):
                 self.display(clear=True)
                 
     def while_waiting(self):
-        self.OpenOrdersBox.values = self.getOpenOrders()
-        if not self.OpenOrdersBox.values:
-            self.OpenOrdersBox.values = ['Bupkis']
+        self.OpenOrders = self.getOpenOrders()
+        self.OpenOrdersBox.values = self.OpenOrders
         self.OpenOrdersBox.display()
         
     def change_forms(self, *args, **keywords):    
@@ -557,9 +761,7 @@ class CancelOrder(npyscreen.ActionForm):
         
         
 class MainApp(npyscreen.FormWithMenus):
-    CONFIG = read_configuration(CONFFILE)
-
-    Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+    Togre = None
     
     def getBalances(self):
         
@@ -591,53 +793,47 @@ class MainApp(npyscreen.FormWithMenus):
             return ["Error"]   
     
     def getOpenOrders(self):
-        OpenOrders = self.Togre.get_open_orders()
+        global TS
         
+        TS.clear_OpenOrders()
+        TS.get_tradeogre_orders()
         
-        OrderList = []
-        if OpenOrders:
-            for order in OpenOrders:
-                odate = datetime.fromtimestamp(order['date'])
-                order_date = odate.strftime("%a, %b %d %Y")
-                order_time = odate.strftime("%I:%M:%S %p")
-                
-                OrderList.append("{0:<10}{1:^6}{2:<10}{3:<12}{4:<12}{5:>40}".format(order_date + ' ' + order_time,
-                                                               order['type'].upper(),order['market'],
-                                                               order['price'],order['quantity'], order['uuid']))
-            return OrderList
-        else:
-            return None
-        
-        
+        OrdersList = TS.format_open_orders()
+
+        return OrdersList
+            
     def getOrderBook(self,coinl):
         
         
         OrderBook = self.Togre.get_order_book(coinl)
         
         if OrderBook:
-            i=0
-            togre_buys = [ ]
-            togre_buys_qty = [ ]
-            togre_sells = [ ]
-            togre_sells_qty = [ ]
-            for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
-                togre_buys.append(key)
-                togre_buys_qty.append(OrderBook['buy'][key])
-                togre_sells.append(key2)
-                togre_sells_qty.append(OrderBook['sell'][key2])
-                i += 1
-            togre_buys.reverse()
-            togre_buys_qty.reverse()
-            
-            OrderBookList = []
-            score="_"
-            OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
-            OrderBookList.append("{0:^64}".format("Price"))
-            OrderBookList.append(64*score)
-            for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
-                OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
-            
-            return OrderBookList
+            try: 
+                i=0
+                togre_buys = [ ]
+                togre_buys_qty = [ ]
+                togre_sells = [ ]
+                togre_sells_qty = [ ]
+                for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
+                    togre_buys.append(key)
+                    togre_buys_qty.append(OrderBook['buy'][key])
+                    togre_sells.append(key2)
+                    togre_sells_qty.append(OrderBook['sell'][key2])
+                    i += 1
+                togre_buys.reverse()
+                togre_buys_qty.reverse()
+                
+                OrderBookList = []
+                score="_"
+                OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
+                OrderBookList.append("{0:^64}".format("Price"))
+                OrderBookList.append(64*score)
+                for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
+                    OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
+                
+                return OrderBookList
+            except KeyError as e:
+                return ['Error: url request (612)']
         else:
             return ['Error: url request (612)']
         
@@ -660,6 +856,7 @@ class MainApp(npyscreen.FormWithMenus):
         return TradePairList
     
     def getDepositAddresses(self):
+        global CONFIG
         daddress = []
         coins = CONFIG.options("address")
         for c in coins:
@@ -669,14 +866,15 @@ class MainApp(npyscreen.FormWithMenus):
         return daddress
     
     def getCoinPair(self):
+        global CONFIG
         return CONFIG['pair'].get('order_book','').split(','), CONFIG['pair'].get('trade_history','').split(','),CONFIG['pair'].get('ticker','').split(',')
     
     def create(self):
+        global CONFIG
+        self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
+    
         self.y,self.x = self.curses_pad.getmaxyx()
-        self.keypress_timeout = 55 
-        #self.form = npyscreen.FormWithMenus(name = "Welcome to Npyscreen",)
-        #t = F.add(npyscreen.BoxBasic, name = "Basic Box:", max_width=50, relx=2, max_height=3)
-        #t.footer = "This is a footer"
+        self.keypress_timeout = 45 
         
         self.timeWidget = self.add(npyscreen.Textfield, name=" ",
                                     value=self.getTimeDate(),
@@ -685,18 +883,15 @@ class MainApp(npyscreen.FormWithMenus):
         
         #self.getBalances()
             
-        #myGrid = F.add(npyscreen.SimpleGrid,columns=2,column_width=10,values=coins)
         #self.add_handlers({"^O": self.cancel_order})
 
-        with open('logo.uni', 'r') as logo:
+        with open(LOGOFILE, 'r') as logo:
             data = logo.readlines()
         
         linlen=len(data[2])
         self.logo = self.add(npyscreen.BoxTitle, values=data, rely=4, relx= int((self.x - linlen) / 2),
                max_width=linlen+7,max_height=len(data)+2)
         self.logo.editable = False 
-        #t1.values = [("BTC", 0.0321), "KDA: 4.20918", "MWC: 9.8376", "USDT: 2384.340", "ARRR: 10.2"]
-        #t1.add(npyscreen.SimpleGrid,columns=2,column_width=10,values=coins)
         
         self.OpenOrders = self.add(npyscreen.BoxTitle, name="Open Orders", values=None,
                                     max_height=6, width = self.x - 6, rely = self.y - 8,
@@ -751,55 +946,28 @@ class MainApp(npyscreen.FormWithMenus):
                                         'widgets_inherit_color': True,}
                                     )
      
-        '''
-        t3 = F.add(npyscreen.BoxTitle, name="Box Title2:", max_height=6,
-                        scroll_exit = True,
-                        contained_widget_arguments={
-                                'color': "WARNING", 
-                                'widgets_inherit_color': True,}
-                        )
-        
-        
-        t2.entry_widget.scroll_exit = True
-        t2.values = ["Hello", 
-            "This is a Test", 
-            "This is another test", 
-            "And here is another line",
-            "And here is another line, which is really very long.  abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz",
-            "And one more."]
-        t3.values = t2.values
-        '''
         
         
         #self.how_exited_handers[npyscreen.wgwidget.EXITED_ESCAPE]  = self.exit_application    
-        '''
-        menu_options = [
-           ("1.) Order Book Pair",self.change_forms,"P",(None,form="PAIR"), None),
-           ("2.) Deposit", self.deposit, "D"),
-           ("3.) Place Buy Order", self.placeBuyOrder, "B"),
-           ("4.) Place Sell Order", self.placeSellOrder, "S"),
-        ]
-        '''
-        self.m1 = self.add_menu(name="Main Menu", shortcut="^M")
-        #self.m1.addItemsFromList(menu_options)
-        self.m1.addItem(text="1.) Order Book Pair",onSelect=self.change_form_pair,shortcut="P")
-        self.m1.addItem(text="2.) Place Buy Order",onSelect=self.change_form_buy,shortcut="B")
-        self.m1.addItem(text="3.) Place Sell Order",onSelect=self.change_form_sell,shortcut="S")
-        self.m1.addItem(text="4.) Cancel Order",onSelect=self.change_form_cancel,shortcut="C")
-        self.m1.addItem(text="5.) Trade History Pair",onSelect=self.change_form_history,shortcut="H")
-        self.m1.addItem(text="6.) Add Deposit Address",onSelect=self.change_form_deposit,shortcut="D")
-        self.m1.addItem(text="7.) Ticker Pair",onSelect=self.change_form_ticker,shortcut="D")
-        '''
-        self.m2 = self.add_menu(name="Another Menu", shortcut="b",)
-        self.m2.addItemsFromList([
-            ("Just Beep",   self.whenJustBeep),
-        ])
         
-        self.m3 = self.m2.addNewSubmenu("A sub menu", "^F")
-        self.m3.addItemsFromList([
-            ("Just Beep",   self.whenJustBeep),
-        ])
-        '''
+        self.m1 = self.add_menu(name="Main Menu", shortcut="^M")
+        self.m1.addItem(text="1.) Order Book Pair",onSelect=self.change_form_pair,shortcut="O")
+        self.m1.addItem(text="2.) Trade History Pair",onSelect=self.change_form_history,shortcut="H")
+        self.m1.addItem(text="3.) Ticker Pair",onSelect=self.change_form_ticker,shortcut="T")
+        self.m1.addItem(text="4.) Place Buy Order",onSelect=self.change_form_buy,shortcut="B")
+        self.m1.addItem(text="5.) Place Sell Order",onSelect=self.change_form_sell,shortcut="S")
+        self.m1.addItem(text="6.) Cancel Order",onSelect=self.change_form_cancel,shortcut="C")
+        self.m1.addItem(text="7.) Get Deposit Address",onSelect=self.change_form_deposit,shortcut="D")
+        self.m1.addItem(text="8.) Withdraw",onSelect=self.change_form_withdraw,shortcut="W")
+        
+        
+        self.m2 = self.add_menu("History Menu", shortcut="^H")
+        self.m2.addItem(text="1.) Deposit History",onSelect=self.change_form_deposit_history,shortcut="D")
+        self.m2.addItem(text="2.) Withdraw History",onSelect=self.change_form_withdraw_history,shortcut="W")
+        self.m2.addItem(text="3.) Trade History",onSelect=self.change_form_trade_history,shortcut="T")
+        
+        #self.m1.addItem(text="7.) Add Deposit Address",onSelect=self.change_form_deposit,shortcut="D")
+        
         self.display()
         
     def calculate_available_btc(self,clist, OpenOrders):
@@ -807,7 +975,7 @@ class MainApp(npyscreen.FormWithMenus):
         btc_price = []
         btc_pair_qty = []
 
-
+        btc = 0.0
         for c in clist: 
             coin = c.split(' ')[0]
             if coin == "BTC":
@@ -815,17 +983,17 @@ class MainApp(npyscreen.FormWithMenus):
 
         if OpenOrders:      
             for s in OpenOrders:
-                order_type.append(re.split(' +',s)[6])
-                btc_price.append(re.split(' +',s)[8])
-                btc_pair_qty.append(re.split(' +',s)[9])
-                #print("%s, %s, %s" % (s.split(' ')[6],s.split(' ')[10],s.split(' ')[12]))
+                order_type.append(re.split(' +',s)[7])
+                btc_price.append(re.split(' +',s)[9])
+                btc_pair_qty.append(re.split(' +',s)[10])
+                
             
             running_btc = 0.0
             pending_btc = 0.0
             for otype,price,qty in zip(order_type,btc_price,btc_pair_qty):
-                #print(otype)
+                
                 if otype == "BUY":
-                    #print("%s, %s, %s" % (otype, price,qty))
+                    
                     running_btc += float(price)*float(qty)
             
                 else:
@@ -833,7 +1001,7 @@ class MainApp(npyscreen.FormWithMenus):
             available_btc = float(btc) - running_btc
             return round(available_btc,8),round(pending_btc,8)
         else:
-            return 0.0,0.0
+            return float(btc),0.0
                 
     def while_waiting(self):
         self.parentApp.coin_pair, self.parentApp.hcoin_pair, self.parentApp.tcoin_pair = self.getCoinPair()
@@ -842,7 +1010,7 @@ class MainApp(npyscreen.FormWithMenus):
         self.holdingCell.display()
         
         self.tickerCell.values = self.getTicker(self.parentApp.tcoin_pair)
-        self.tickerCell.name = "".join(["Ticker: ", self.parentApp.tcoin_pair[0], "-", self.parentApp.tcoin_pair[1]])
+        self.tickerCell.name = "".join(["Ticker: ", self.parentApp.tcoin_pair[0].upper(), "-", self.parentApp.tcoin_pair[1].upper()])
         self.tickerCell.display()
         
         self.timeWidget.value = self.getTimeDate()
@@ -858,11 +1026,11 @@ class MainApp(npyscreen.FormWithMenus):
         
         
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
-        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0], "-",self.parentApp.coin_pair[1]])
+        self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
         
         self.TradeHistory.values = self.getTradePairHistory(self.parentApp.hcoin_pair)
-        self.TradeHistory.name = "".join(['Trade History:  ',self.parentApp.hcoin_pair[0], "-",self.parentApp.hcoin_pair[1]])
+        self.TradeHistory.name = "".join(['Trade History:  ',self.parentApp.hcoin_pair[0].upper(), "-",self.parentApp.hcoin_pair[1].upper()])
         self.TradeHistory.display()
         
         self.DepositAddress.values = self.getDepositAddresses()
@@ -898,7 +1066,6 @@ class MainApp(npyscreen.FormWithMenus):
         
         self.parentApp.change_form(change_to)
     
-    
     def change_form_cancel(self, *args, **keywords):
         change_to = "CANCEL"
         
@@ -909,6 +1076,26 @@ class MainApp(npyscreen.FormWithMenus):
         
         self.parentApp.change_form(change_to)
         
+    def change_form_deposit_history(self, *args, **keywords):
+        change_to = "DHISTORY"
+        
+        self.parentApp.change_form(change_to)
+        
+    def change_form_withdraw_history(self, *args, **keywords):
+        change_to = "WHISTORY"
+        
+        self.parentApp.change_form(change_to)
+        
+    def change_form_trade_history(self, *args, **keywords):
+        change_to = "THISTORY"
+        
+        self.parentApp.change_form(change_to)
+          
+    def change_form_withdraw(self, *args, **keywords):
+        change_to = "WITHDRAW"
+        
+        self.parentApp.change_form(change_to)
+            
     def change_form_ticker(self, *args, **keywords):
         change_to = "TICKER"
         
@@ -917,6 +1104,10 @@ class MainApp(npyscreen.FormWithMenus):
 def main():
     global CONFIG
     CONFIG = read_configuration(CONFFILE)
+    
+    global TS
+    TS = SeleniumTradeOgre()    
+    TS.tradeogre_login()
     
     App = ToTUIApplication()
     App.run() 
