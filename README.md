@@ -70,6 +70,9 @@ Run:
 
 Follow the menus and read the details. Read the on-screen instructions.
 
+## Screenshot
+![img/totui.png](img/totui.png)
+
 ## Disclaimer
 
 I am in no way responsible for your actions with this app. I am not liable for any erroneous buy/sell orders you may place using totui. Instead, be cautious and double check your orders before submitting them. This is good practice in general.
