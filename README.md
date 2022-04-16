@@ -1,8 +1,17 @@
 # totui (Trade Ogre TUI)
 A textual user interface (TUI) for the popular TradeOgre exchange
 
+Has the ability to:
+
+* Place Buy Orders
+* Place Sell Orders
+* List Order Books, Tickers, and Action History
+* Withdraw to address for most coins
+* Locate Deposit address
+* & more!
+
 ## Dependencies
-* Chrome Browser 99+
+* Latest Chrome Browser (stable)
 
 
 ## Install (pip)
@@ -17,20 +26,18 @@ totui
 ```
 
 
-## Install (git)
+## Install (Source)
 From git source
 
-```
+```shell
 git clone https://github.com/protomens/totui
 cd totui
-mkdir ~/.totui
-cp config.ini ~/.totui
 ```
 
 
 Install the following dependencies if you don't already have them installed:
 
-```
+```shell
 pip3 install npyscreen
 pip3 install requests
 pip3 install selenium
@@ -38,6 +45,13 @@ pip3 install undected_chromedriver
 pip3 install bs4
 pip install urllib3
 ```
+
+Build & Install
+```shell
+cd totui && python3 -m build
+python3 setup.py install
+```
+
 
 ## Configure
 
@@ -47,9 +61,10 @@ All your changes within **totui** will be saved to this config file. It will sta
 
 Run:
 
-`python3 totui.py`
+`totui`
 
-**Note:** *Your terminal size must be at least 960x756 otherwise you will get an error when trying to run this.* 
+
+**Note:** *Your terminal size must be at least 178x62 otherwise you will get an error when trying to run this.* 
 
 ## Usage
 
@@ -69,7 +84,7 @@ If you feel so inclined as to leave a tip this app will cotinue in development a
 
 `XMR: 82iYCRic1nQHb8RkU1T8ZYgebv7mzuxRJXiZ8fQ1crNoMtPqZRy4Rr1aJ9ND7RMd5uHTR9z8GbugGMSokmEq5JYsEuKtwHP`
 
-`DERO: `
+`DERO: dero1qyxctkgzee00jh3md4etc8kxkr8x4hh7cckezrhn7de39kj4xaf9xqqa6xeta`
 
 `BTC: bc1q70qdes2xrxyc03fgwekmmt8j2rds0fmg3dehth`
 

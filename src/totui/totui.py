@@ -22,7 +22,7 @@ CONFFILE = os.path.join(BASEDIR, 'config.ini')
 COINSFILE = os.path.join(BASEDIR, 'coins.list')
 LOGOFILE = os.path.join(BASEDIR, 'logo.uni')
 CONFIG = configparser.ConfigParser()
-TOTUIVERSION = "TOTUI v1.7.6"
+TOTUIVERSION = "TOTUI v1.7.7"
 
 def read_configuration(confpath):
     """Read the configuration file at given path."""
@@ -620,29 +620,37 @@ class SellPair(npyscreen.ActionForm):
         
         
     def create(self):
+        clist = []
         global CONFIG
+        
         self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
 
-        self.keypress_timeout = 30  
+        self.keypress_timeout = 15  
 
         self.y,self.x = self.curses_pad.getmaxyx()
 
-        self.add(npyscreen.TitleText, name="Press ^Q to quit and type in order pair to display Order Book i.e. BTC,XHV", value=None, rely = self.y - 9 )
-        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR",)
-        self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None)
-        self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None)
+        self.help = self.add(npyscreen.FixedText, value="Press ^Q to quit and type in order pair to display Order Book i.e. BTC,XHV", rely = self.y - 15 )
+        self.help2 = self.add(npyscreen.FixedText, value="Select a coin from the list and press 'S', to sell the coin. Adjust coin pair, amount, and price appropriately.")
+        self.help.editable = False
+        self.help2.editable = False
+        
+        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR", rely = self.y - 12)
+        self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None, rely = self.y - 11)
+        self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None, rely = self.y - 10)
+        
         self.add_handlers({"^Q": self.change_forms})
         self.add_handlers({"^P": self.order_book})
+        self.add_handlers({"S": self.load_order})
         
         
         self.OrderBook = self.add(npyscreen.BoxTitle, name="Order Book", values = None,
-                            max_height=self.y - 28, width = 70, rely = 18, relx = 36,
+                            max_height=self.y - 34, width = 70, rely = 8, relx = 36,
                             scroll_exit = True,
                             contained_widget_arguments={
                                 'color': "WARNING", 
                                 'widgets_inherit_color': True,})
-        clist = []
-        self.holdingCell = self.add(npyscreen.BoxTitle, name="Holdings", values = clist, rely=self.y - 28, relx=116, 
+
+        self.holdingCell = self.add(BoxTitle, name="Holdings", values = clist, rely=self.y - 48, relx=116, 
                         max_width=30, max_height=15,scroll_exit = True,
                         contained_widget_arguments={
                                 'color': "WARNING", 
@@ -668,6 +676,17 @@ class SellPair(npyscreen.ActionForm):
             self.display(clear=True)
         
         self.change_forms()
+        
+    def load_order(self, *args, **keywords):
+        try:
+            if self.holdingCell.value[0] >= 0: 
+                sell_coin, self.amount.value = re.split(' +', self.holdingCell.values[self.holdingCell.value[0]])
+                cpair = "BTC," + sell_coin
+                self.coin_pair.value = cpair
+                self.coin_pair.display()
+                self.amount.display()
+        except IndexError:
+            pass
         
     def order_book(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
@@ -911,6 +930,7 @@ class MainApp(npyscreen.FormWithMenus):
         
         self.availBTC = self.add(npyscreen.TitleText, name="Available BTC:", value=None, relyy = 29, relx=5, begin_entry_at = 16, use_two_lines = False)
         self.pendingBTC = self.add(npyscreen.TitleText, name="Pending BTC:", value=None, relyy = 30, relx=5, begin_entry_at = 16, use_two_lines = False)
+        self.tradingBTC = self.add(npyscreen.TitleText, name="Trading BTC:", value=None, relyy = 30, relx=5, begin_entry_at = 16, use_two_lines = False)
         
         self.tickerCell = self.add(npyscreen.BoxTitle, name="Ticker", values = None, rely=31, relx=5, 
                         max_width=30, max_height=10,scroll_exit = True,
@@ -999,9 +1019,11 @@ class MainApp(npyscreen.FormWithMenus):
                 else:
                     pending_btc += float(price)*float(qty)
             available_btc = float(btc) - running_btc
-            return round(available_btc,8),round(pending_btc,8)
+            trading_btc = available_btc-(available_btc*0.002)
+            return round(available_btc,10),round(pending_btc,10), round(trading_btc, 10)
         else:
-            return float(btc),0.0
+            trading_btc = float(btc)-(float(btc)*0.002)
+            return float(btc),0.0, float(trading_btc)
                 
     def while_waiting(self):
         self.parentApp.coin_pair, self.parentApp.hcoin_pair, self.parentApp.tcoin_pair = self.getCoinPair()
@@ -1020,10 +1042,10 @@ class MainApp(npyscreen.FormWithMenus):
         self.OpenOrders.display()
         
         
-        abtc, pbtc = self.calculate_available_btc(self.holdingCell.values, self.OpenOrders.values)
-        self.availBTC.value = '{:f}'.format(abtc)
-        self.pendingBTC.value = '{:f}'.format(pbtc)
-        
+        abtc, pbtc, tbtc = self.calculate_available_btc(self.holdingCell.values, self.OpenOrders.values)
+        self.availBTC.value = '{:.8f}'.format(abtc)
+        self.pendingBTC.value = '{:.8f}'.format(pbtc)
+        self.tradingBTC.value = '{:.8f}'.format(tbtc)
         
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
         self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
