@@ -22,7 +22,7 @@ CONFFILE = os.path.join(BASEDIR, 'config.ini')
 COINSFILE = os.path.join(BASEDIR, 'coins.list')
 LOGOFILE = os.path.join(BASEDIR, 'logo.uni')
 CONFIG = configparser.ConfigParser()
-TOTUIVERSION = "TOTUI v1.7.7"
+TOTUIVERSION = "TOTUI v1.7.8"
 
 def read_configuration(confpath):
     """Read the configuration file at given path."""
@@ -171,7 +171,7 @@ class WithdrawCoin(npyscreen.ActionForm):
                 self.prevCoin = self.coin.value  
         try:
             if self.CoinBalances.value[0] >= 0:
-                self.coin.value, self.amount.value = re.split(' +',self.balances[self.CoinBalances.value[0]])
+                self.coin.value, self.amount.value = re.split(' +',self.CoinBalances.values[self.CoinBalances.value[0]])
                 self.coin.display()
                 self.amount.display()
         except IndexError:
@@ -1126,6 +1126,17 @@ class MainApp(npyscreen.FormWithMenus):
 def main():
     global CONFIG
     CONFIG = read_configuration(CONFFILE)
+    
+    if not CONFIG['api'].get('pub_key','') and not CONFIG['api'].get('secret_key',''):
+        pubapi = input("Please enter your public API key:")
+        privapi = input("Please enter your private API key: ")
+        CONFIG.set('api',  'pub_key', pubapi)
+        CONFIG.set('api', 'secret_key', privapi)
+        FILE = open(CONFFILE,'w')
+        CONFIG.write(FILE)
+        FILE.close()
+       
+    
     
     global TS
     TS = SeleniumTradeOgre()    
