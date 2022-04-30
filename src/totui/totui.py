@@ -17,12 +17,20 @@ from curses import KEY_F5
 from totui_selenium.totui_selenium import SeleniumTradeOgre
 from tradeogre_api.tradeogre_api import TradeOgreAPI
 
-BASEDIR = os.path.join(os.path.expanduser('~'), '.totui')
-CONFFILE = os.path.join(BASEDIR, 'config.ini')
+import qrcode
+from PIL import Image
+from PIL import ImageDraw, ImageFont
+from PIL import ImageOps
+
+TOTUIVERSION = "TOTUI v1.8.1"
+
+BASEDIR   = os.path.join(os.path.expanduser('~'), '.totui')
+IMGDIR    = os.path.join(BASEDIR, 'img')
+CONFFILE  = os.path.join(BASEDIR, 'config.ini')
 COINSFILE = os.path.join(BASEDIR, 'coins.list')
-LOGOFILE = os.path.join(BASEDIR, 'logo.uni')
-CONFIG = configparser.ConfigParser()
-TOTUIVERSION = "TOTUI v1.7.8"
+LOGOFILE  = os.path.join(BASEDIR, 'logo.uni')
+CONFIG    = configparser.ConfigParser()
+
 
 def read_configuration(confpath):
     """Read the configuration file at given path."""
@@ -46,6 +54,9 @@ def read_configuration(confpath):
         shutil.copyfile(defaultcoins, COINSFILE)
         shutil.copyfile(defaultlogo, LOGOFILE)
         
+    if not os.path.isdir(IMGDIR):
+        os.mkdir(IMGDIR)
+        
     CONFIG.read(confpath)
     return CONFIG
 
@@ -54,6 +65,8 @@ class BoxTitle(npyscreen.BoxTitle):
 
 
 class ToTUIApplication(npyscreen.NPSAppManaged):
+
+    
     def onStart(self):
         global CONFIG
         
@@ -73,6 +86,7 @@ class ToTUIApplication(npyscreen.NPSAppManaged):
         self.addForm("WHISTORY", GetWithdrawHistory, name="Withdraw History", color="IMPORTANT")
         self.addForm("THISTORY", GetTradeHistory, name="Trades History", color="IMPORTANT")
 
+
         #self.change_form("MAIN")
     def onCleanExit(self):
         npyscreen.notify_wait("Goodbye!")
@@ -86,6 +100,7 @@ class ToTUIApplication(npyscreen.NPSAppManaged):
         # By default the application keeps track of every form visited.
         # There's no harm in this, but we don't need it so:        
         self.resetHistory()
+
 
 class WithdrawCoin(npyscreen.ActionForm):
     coin = ''
@@ -108,6 +123,7 @@ class WithdrawCoin(npyscreen.ActionForm):
                 clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
             return clist
         return None 
+    
 
     def create(self):
         global TS
@@ -781,6 +797,8 @@ class CancelOrder(npyscreen.ActionForm):
         
 class MainApp(npyscreen.FormWithMenus):
     Togre = None
+    DepositCoin    = '' 
+    DepositAddress = ''
     
     def getBalances(self):
         
@@ -957,7 +975,7 @@ class MainApp(npyscreen.FormWithMenus):
         
         daddress = self.getDepositAddresses()
         
-        self.DepositAddress = self.add(npyscreen.BoxTitle, name="Deposit Addresses",
+        self.DepositAddress = self.add(BoxTitle, name="Deposit Addresses - Select, Press Crtl+D To View QRCODE",
                                     max_height=6, width = self.x - 6, rely = self.y - 14, 
                                     scroll_exit = True,
                                     values = daddress,
@@ -987,6 +1005,8 @@ class MainApp(npyscreen.FormWithMenus):
         self.m2.addItem(text="3.) Trade History",onSelect=self.change_form_trade_history,shortcut="T")
         
         #self.m1.addItem(text="7.) Add Deposit Address",onSelect=self.change_form_deposit,shortcut="D")
+        
+        self.add_handlers({"^D": self.qrcode_form})
         
         self.display()
         
@@ -1067,7 +1087,8 @@ class MainApp(npyscreen.FormWithMenus):
         now_time = now.strftime("%I:%M:%S %p")
         
         return now_date + '\n' +  now_time          
-    
+
+   
     def change_form_pair(self, *args, **keywords):
         change_to = "PAIR"
         
@@ -1122,6 +1143,77 @@ class MainApp(npyscreen.FormWithMenus):
         change_to = "TICKER"
         
         self.parentApp.change_form(change_to)
+        
+    def qrcode_form(self, *args, **keywords):
+        if self.DepositAddress.value[0] >= 0:
+            address = ''
+            daddress =  self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[1:]
+            if type(daddress) is list:
+                k = 0
+                for e in daddress:
+                    if k != 0:
+                        address = ':'.join([address, e.replace(' ', '')])
+                    else:
+                        address = ''.join([address, e.replace(' ', '')])
+                    k += 1    
+            else:
+                address = daddress
+            self.QRCode(self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[0], address)
+                         
+        
+    def QRCode(self, *args, **keywords):
+        DepositCoin    = args[0]
+        DepositAddress = args[1] 
+    
+        coinLogo = pkg_resources.resource_filename(__name__, os.path.join('coinimg', DepositCoin + '.png'))
+        logo = Image.open(coinLogo)
+        basewidth = 100
+         
+        # adjust image size
+        wpercent = (basewidth/float(logo.size[0]))
+        hsize = int((float(logo.size[1])*float(wpercent)))
+        logo = logo.resize((basewidth, hsize))
+        
+        QRcode = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
+        QRcode.add_data(DepositAddress)
+        QRcode.make()
+
+        QRimg = QRcode.make_image(fill_color='Black', back_color="white").convert('RGB')
+         
+        # set size of QR code
+        pos = ((QRimg.size[0] - logo.size[0]) // 2,
+               (QRimg.size[1] - logo.size[1]) // 2)
+        
+        QRimg.paste(logo, pos)
+        
+        # crop a bit
+        border = (0, 4, 0, 30) # left, top, right, bottom
+        QRimg = ImageOps.crop(QRimg, border)
+        
+        
+        # Next Process is adding and centering the Deposit address on the image
+        # Creating a background a little larger and pasting the QR
+        # Image onto it with the text
+        if len(DepositAddress) <= 50:
+            fontSize = 12
+        elif len(DepositAddress) <=75:
+            fontSize = 11
+        else:
+            fontSize = 10
+            
+        background = Image.new('RGBA', (QRimg.size[0], QRimg.size[1] + 15), (255,255,255,255))
+        robotoFont = ImageFont.truetype(pkg_resources.resource_filename(__name__, os.path.join('fonts', 'Roboto-BoldItalic.ttf')), fontSize)
+    
+        draw = ImageDraw.Draw(background)
+        w,h  = draw.textsize(DepositAddress)
+        draw.text(((QRimg.size[0]+15 - w)/2,QRimg.size[1]-2),DepositAddress, (0,0,0), font=robotoFont)
+        
+        background.paste(QRimg, (0,0))
+        background.save(os.path.join(IMGDIR, DepositCoin + ".png"))
+         
+        #display
+        img = Image.open(os.path.join(IMGDIR, DepositCoin + ".png"))
+        img.show()
 
 def main():
     global CONFIG

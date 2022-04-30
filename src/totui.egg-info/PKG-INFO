@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: totui
-Version: 1.7.8
+Version: 1.8.1
 Summary: TradeOgre TUI
 Home-page: https://github.com/protomens/totui
 Author: protomens
@@ -49,30 +49,16 @@ git clone https://github.com/protomens/totui
 cd totui
 ```
 
-
-Install the following dependencies if you don't already have them installed:
-
-```shell
-pip3 install npyscreen
-pip3 install requests
-pip3 install selenium
-pip3 install undected_chromedriver
-pip3 install bs4
-pip install urllib3
-```
-
 Build & Install
+
 ```shell
-cd totui && python3 -m build
 python3 setup.py install
 ```
 
 
 ## Configure
 
-Edit **~/.totui/config.ini** to include your public and secret TradeOgre keys. These keys can be found by logging into your account and going to **settings**. Generate your keys if you haven't already. Paste the first into the first line under **[api]**,  **pub_key**. Paste after **=**. Paste the second key into the next line, **secret_key**, after the **=**.
-
-All your changes within **totui** will be saved to this config file. It will startup how you left it.
+Totui now prompts you at the start for your API keys. 
 
 Run:
 
@@ -88,6 +74,10 @@ Follow the menus and read the details. Read the on-screen instructions.
 ## Disclaimer
 
 I am in no way responsible for your actions with this app. I am not liable for any erroneous buy/sell orders you may place using totui. Instead, be cautious and double check your orders before submitting them. This is good practice in general.
+
+It is recommended that you verify all deposit and withdraw addresses before proceeding. Your errors or errors of the program are not my responsibility. It is advised to make sure you know what you are doing when it comes to finances. 
+
+It is helpful to open a second tab in the Chrome browser to verify all addresses are correct and any transactions do go through. 
 
 ## License
 

@@ -1,0 +1,2 @@
+include src/totui/coinimg/*.png
+include src/totui/fonts/*.ttf
