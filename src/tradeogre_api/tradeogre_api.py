@@ -23,7 +23,11 @@ class TradeOgreAPI():
         return r.json()
     
     def get_ticker(self,coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
+        if coinl[1] == "BTC" or coinl[1] == "USDT": 
+            coinpair = '-'.join([coinl[0], coinl[1]])
+        else:
+            coinpair = '-'.join([coinl[1], coinl[0]])
+            
         endpoint = '/ticker/%s' % coinpair
         try:
             r = requests.get(self.apiURL + endpoint, auth=self.auth)
@@ -48,7 +52,12 @@ class TradeOgreAPI():
             return None
         
     def get_order_book(self,coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
+        
+        if coinl[1] == "BTC" or coinl[1] == "USDT": 
+            coinpair = '-'.join([coinl[0], coinl[1]])
+        else:
+            coinpair = '-'.join([coinl[1], coinl[0]])
+            
         endpoint = '/orders/%s' % coinpair
         try:
             r = requests.get(self.apiURL + endpoint, auth=self.auth)
@@ -61,7 +70,12 @@ class TradeOgreAPI():
             return None
         
     def get_trade_history(self, coinl):
-        coinpair = '-'.join([coinl[0], coinl[1]])
+        
+        if coinl[1] == "BTC" or coinl[1] == "USDT": 
+            coinpair = '-'.join([coinl[0], coinl[1]])
+        else:
+            coinpair = '-'.join([coinl[1], coinl[0]])
+            
         endpoint = '/history/%s' % coinpair
         try:
             r = requests.get(self.apiURL + endpoint, auth=self.auth)
@@ -74,7 +88,11 @@ class TradeOgreAPI():
             return None
         
     def place_buy_order(self,coinl,qty,price):
-        market = '-'.join([coinl[0], coinl[1]])
+        if coinl[1] == "BTC" or coinl[1] == "USDT": 
+            market = '-'.join([coinl[0], coinl[1]])
+        else:
+            market = '-'.join([coinl[1], coinl[0]])
+         
         endpoint = '/order/buy'
         try:
             r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': str(price)}, auth=self.auth)
@@ -89,7 +107,11 @@ class TradeOgreAPI():
             return {'success' : False, "error" : str(r.status_code)}
         
     def place_sell_order(self,coinl,qty,price):
-        market = '-'.join([coinl[0], coinl[1]])
+        if coinl[1] == "BTC" or coinl[1] == "USDT": 
+            market = '-'.join([coinl[0], coinl[1]])
+        else:
+            market = '-'.join([coinl[1], coinl[0]])
+        
         endpoint = '/order/sell'
         try: 
             r = requests.post(self.apiURL + endpoint, data={'market': market, 'quantity': qty, 'price': price}, auth=self.auth)

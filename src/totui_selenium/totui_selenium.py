@@ -123,7 +123,7 @@ class SeleniumTradeOgre():
         
     def tradeogre_getWallet_status(self,coin):
         self.driver.get(BALANCEURL)
-        self.driver.find_element_by_css_selector("input[type='search']").send_keys(coin,Keys.ENTER)
+        self.driver.find_element(By.CSS_SELECTOR, "input[type='search']").send_keys(coin,Keys.ENTER)
         sleep(2)
         
         HTML = self.driver.page_source
@@ -147,7 +147,7 @@ class SeleniumTradeOgre():
                 self.driver.find_element(By.NAME, 'withdrawaddress').send_keys(address)
                 
                 sleep(1)
-                self.driver.find_element_by_css_selector("input[value='Withdraw']").click()
+                self.driver.find_element(By.CSS_SELECTOR, "input[value='Withdraw']").click()
                 sleep(2)
                 resultant['success'] = True
                 resultant['message'] = "Success"
@@ -324,12 +324,12 @@ class SeleniumTradeOgre():
         resultant = {'sucess' : False, 'message' : None}
         if OTP:
             try: 
-                self.driver.find_element_by_css_selector("input[id='totp']").send_keys(OTP)
+                self.driver.find_element(By.CSS_SELECTOR, "input[id='totp']").send_keys(OTP)
                 #self.driver.find_element(By.ID, 'totp').send_keys(OTP)
                 #sleep(1)
                 #self.driver.find_element(By.ID, 'authSubmit').click()
                 try:
-                    self.driver.find_element_by_css_selector("button[id='authSubmit']").click()
+                    self.driver.find_element(By.CSS_SELECTOR, "button[id='authSubmit']").click()
                     resultant['success'] = True
                     resultant['message'] = None
                     return resultant

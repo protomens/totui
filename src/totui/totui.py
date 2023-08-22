@@ -19,18 +19,13 @@ from tradeogre_api.tradeogre_api import TradeOgreAPI
 
 import qrcode
 from PIL import Image
-from PIL import ImageDraw, ImageFont
-from PIL import ImageOps
 
-TOTUIVERSION = "TOTUI v1.8.1"
-
-BASEDIR   = os.path.join(os.path.expanduser('~'), '.totui')
-IMGDIR    = os.path.join(BASEDIR, 'img')
-CONFFILE  = os.path.join(BASEDIR, 'config.ini')
+BASEDIR = os.path.join(os.path.expanduser('~'), '.totui')
+CONFFILE = os.path.join(BASEDIR, 'config.ini')
 COINSFILE = os.path.join(BASEDIR, 'coins.list')
-LOGOFILE  = os.path.join(BASEDIR, 'logo.uni')
-CONFIG    = configparser.ConfigParser()
-
+LOGOFILE = os.path.join(BASEDIR, 'logo.uni')
+CONFIG = configparser.ConfigParser()
+TOTUIVERSION = "TOTUI v1.9.0"
 
 def read_configuration(confpath):
     """Read the configuration file at given path."""
@@ -54,9 +49,6 @@ def read_configuration(confpath):
         shutil.copyfile(defaultcoins, COINSFILE)
         shutil.copyfile(defaultlogo, LOGOFILE)
         
-    if not os.path.isdir(IMGDIR):
-        os.mkdir(IMGDIR)
-        
     CONFIG.read(confpath)
     return CONFIG
 
@@ -65,7 +57,8 @@ class BoxTitle(npyscreen.BoxTitle):
 
 
 class ToTUIApplication(npyscreen.NPSAppManaged):
-
+    DepositCoin    = '' 
+    DepositAddress = ''
     
     def onStart(self):
         global CONFIG
@@ -401,7 +394,7 @@ class DepositAddress(npyscreen.ActionForm):
 class EditPair(npyscreen.ActionForm):
     
     def create(self):
-        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="BTC,XMR")
+        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="XMR,BTC")
         self.add_handlers({"^Q": self.change_forms})
         
         self.parentApp.coin_pair = self.coin_pair.value.split(',')
@@ -428,7 +421,7 @@ class EditPair(npyscreen.ActionForm):
 class EditTickerPair(npyscreen.ActionForm):
     
     def create(self):
-        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="BTC,XMR")
+        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="XMR,BTC")
         self.add_handlers({"^Q": self.change_forms})
         
         self.parentApp.tcoin_pair = self.coin_pair.value.split(',')
@@ -455,7 +448,7 @@ class EditTickerPair(npyscreen.ActionForm):
 class EditHistoryPair(npyscreen.ActionForm):
     def create(self):
    
-        self.hcoin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="BTC,XMR")
+        self.hcoin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair:", value="XMR,BTC")
         self.add_handlers({"^Q": self.change_forms})
         
         self.parentApp.hcoin_pair = self.hcoin_pair.value.split(',')
@@ -498,27 +491,42 @@ class BuyPair(npyscreen.ActionForm):
             togre_buys_qty = [ ]
             togre_sells = [ ]
             togre_sells_qty = [ ]
-            for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
-                togre_buys.append(key)
-                togre_buys_qty.append(OrderBook['buy'][key])
-                togre_sells.append(key2)
-                togre_sells_qty.append(OrderBook['sell'][key2])
-                i += 1
-            togre_buys.reverse()
-            togre_buys_qty.reverse()
-            
-            OrderBookList = []
-            score="_"
-            OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
-            OrderBookList.append("{0:^64}".format("Price"))
-            OrderBookList.append(64*score)
-            for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
-                OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
-            
-            return OrderBookList
+            try: 
+                for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
+                    togre_buys.append(key)
+                    togre_buys_qty.append(OrderBook['buy'][key])
+                    togre_sells.append(key2)
+                    togre_sells_qty.append(OrderBook['sell'][key2])
+                    i += 1
+                togre_buys.reverse()
+                togre_buys_qty.reverse()
+                
+                OrderBookList = []
+                score="_"
+                OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
+                OrderBookList.append("{0:^64}".format("Price"))
+                OrderBookList.append(64*score)
+                for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
+                    OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
+                
+                return OrderBookList
+            except:
+                return ['Error: getting order book. Wrong pair?']
         else:
             return ['Error: url request (612)']
         
+    def getBalances(self):
+        
+        balances = self.Togre.get_balances()
+
+        clist = []
+        if balances:
+            for coin in balances['balances'].keys():
+                if balances['balances'][coin] == "0.00000000":
+                    continue
+                clist.append("{1:<10}{0:>.8f}".format(float(balances['balances'][coin]), coin))
+            return clist
+        return None 
         
     def create(self):
         global CONFIG
@@ -527,9 +535,11 @@ class BuyPair(npyscreen.ActionForm):
         self.keypress_timeout = 30  
 
         self.y,self.x = self.curses_pad.getmaxyx()
+        
+        self.balances = self.getBalances()
 
-        self.add(npyscreen.TitleText, name="Press ^Q to quit and type in your order pair to display Order Book. i.e, BTC,XHV", value=None, rely = self.y - 9 )
-        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR",)
+        self.add(npyscreen.TitleText, name="Press ^Q to quit and type in your order pair to display Order Book. i.e, ARRR,BTC", value=None, rely = self.y - 9 )
+        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="XMR,BTC",)
         self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None)
         self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None)
         self.add_handlers({"^Q": self.change_forms})
@@ -537,12 +547,17 @@ class BuyPair(npyscreen.ActionForm):
         
         
         self.OrderBook = self.add(npyscreen.BoxTitle, name="Order Book", values = None,
-                            max_height=self.y - 28, width = 70, rely = 18, relx = 36,
+                            max_height=self.y - 34, width = 70, rely = 8, relx = 36,
                             scroll_exit = True,
                             contained_widget_arguments={
                                 'color': "WARNING", 
                                 'widgets_inherit_color': True,}
                             )
+        self.Wallet   = self.add(npyscreen.BoxTitle, name="Holdings", values =self.balances, rely=self.y - 48, relx=116, 
+                        max_width=30, max_height=15,scroll_exit = True,
+                        contained_widget_arguments={
+                                'color': "WARNING", 
+                                'widgets_inherit_color': True,})
         self.order_book()
         
         
@@ -570,11 +585,14 @@ class BuyPair(npyscreen.ActionForm):
         self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
         
+        
     def while_waiting(self):
         self.parentApp.coin_pair = self.coin_pair.value.split(',')                
         self.OrderBook.values = self.getOrderBook(self.parentApp.coin_pair)
         self.OrderBook.name = "".join(["Order Book:  ", self.parentApp.coin_pair[0].upper(), "-",self.parentApp.coin_pair[1].upper()])
         self.OrderBook.display()
+        self.Wallet.values = self.getBalances()
+        self.Wallet.display()
            
     def change_forms(self, *args, **keywords):    
         change_to = "MAIN"
@@ -613,30 +631,32 @@ class SellPair(npyscreen.ActionForm):
             togre_buys_qty = [ ]
             togre_sells = [ ]
             togre_sells_qty = [ ]
-            for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
-                togre_buys.append(key)
-                togre_buys_qty.append(OrderBook['buy'][key])
-                togre_sells.append(key2)
-                togre_sells_qty.append(OrderBook['sell'][key2])
-                i += 1
-            togre_buys.reverse()
-            togre_buys_qty.reverse()
-            
-            OrderBookList = []
-            score="_"
-            OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
-            OrderBookList.append("{0:^64}".format("Price"))
-            OrderBookList.append(64*score)
-            for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
-                OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
-            
-            return OrderBookList
+            try: 
+                for key,key2 in zip(OrderBook['buy'].keys(), OrderBook['sell'].keys()):
+                    togre_buys.append(key)
+                    togre_buys_qty.append(OrderBook['buy'][key])
+                    togre_sells.append(key2)
+                    togre_sells_qty.append(OrderBook['sell'][key2])
+                    i += 1
+                togre_buys.reverse()
+                togre_buys_qty.reverse()
+                
+                OrderBookList = []
+                score="_"
+                OrderBookList.append("{0:^32}{1:^32}".format("Bid", "Ask"))
+                OrderBookList.append("{0:^64}".format("Price"))
+                OrderBookList.append(64*score)
+                for bid,bamt,sell,samt in zip(togre_buys, togre_buys_qty, togre_sells, togre_sells_qty):
+                    OrderBookList.append("{0:<14}{1:>18}  |  {2:<14}{3:>18}".format(bamt,bid,sell,samt))
+                
+                return OrderBookList
+            except:
+                return ['Error: getting order book. Wrong pair?']
         else:
             return ['Error: url request (612)']
         
         
     def create(self):
-        clist = []
         global CONFIG
         
         self.Togre = TradeOgreAPI(CONFIG['api'].get('pub_key',''), CONFIG['api'].get('secret_key',''))
@@ -650,7 +670,7 @@ class SellPair(npyscreen.ActionForm):
         self.help.editable = False
         self.help2.editable = False
         
-        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="BTC,XMR", rely = self.y - 12)
+        self.coin_pair   = self.add(npyscreen.TitleText, name = "Coin Pair: ", value="XMR,BTC", rely = self.y - 12)
         self.amount      = self.add(npyscreen.TitleText, name = "Amount:",value=None, rely = self.y - 11)
         self.price       = self.add(npyscreen.TitleText, name = "Price:",value=None, rely = self.y - 10)
         
@@ -658,6 +678,7 @@ class SellPair(npyscreen.ActionForm):
         self.add_handlers({"^P": self.order_book})
         self.add_handlers({"S": self.load_order})
         
+        self.balances = self.getBalances()
         
         self.OrderBook = self.add(npyscreen.BoxTitle, name="Order Book", values = None,
                             max_height=self.y - 34, width = 70, rely = 8, relx = 36,
@@ -666,7 +687,7 @@ class SellPair(npyscreen.ActionForm):
                                 'color': "WARNING", 
                                 'widgets_inherit_color': True,})
 
-        self.holdingCell = self.add(BoxTitle, name="Holdings", values = clist, rely=self.y - 48, relx=116, 
+        self.holdingCell = self.add(npyscreen.BoxTitle, name="Holdings", values = self.balances, rely=self.y - 48, relx=116, 
                         max_width=30, max_height=15,scroll_exit = True,
                         contained_widget_arguments={
                                 'color': "WARNING", 
@@ -686,7 +707,7 @@ class SellPair(npyscreen.ActionForm):
             self.change_forms()
         else:
             npyscreen.notify_wait("Uh-oh! Something went wrong. Check your values and try again. REASON: " + response['error'] )
-            self.coin_pair.value = "BTC,XMR"
+            self.coin_pair.value = "XMR,BTC"
             self.amount.value = None
             self.price.value = None
             self.display(clear=True)
@@ -748,7 +769,7 @@ class CancelOrder(npyscreen.ActionForm):
 
         self.y,self.x = self.curses_pad.getmaxyx()
         #self.keypress_timeout = 30  
-
+        self.OpenOrders = self.getOpenOrders()
         self.OpenOrdersBox = self.add(npyscreen.BoxTitle, name="Open Orders", values=self.OpenOrders,
                                     max_height=14, width = self.x - 6, rely = self.y - 20,
                                     scroll_exit = True,
@@ -797,8 +818,6 @@ class CancelOrder(npyscreen.ActionForm):
         
 class MainApp(npyscreen.FormWithMenus):
     Togre = None
-    DepositCoin    = '' 
-    DepositAddress = ''
     
     def getBalances(self):
         
@@ -1146,75 +1165,23 @@ class MainApp(npyscreen.FormWithMenus):
         
     def qrcode_form(self, *args, **keywords):
         if self.DepositAddress.value[0] >= 0:
-            address = ''
-            daddress =  self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[1:]
-            if type(daddress) is list:
-                k = 0
-                for e in daddress:
-                    if k != 0:
-                        address = ':'.join([address, e.replace(' ', '')])
-                    else:
-                        address = ''.join([address, e.replace(' ', '')])
-                    k += 1    
-            else:
-                address = daddress
-            self.QRCode(self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[0], address)
-                         
+            self.parentApp.DepositCoin = self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[0]
+            self.parentApp.DepositAddress = self.DepositAddress.values[self.DepositAddress.value[0]].split(':')[-1].replace(' ', '')
         
-    def QRCode(self, *args, **keywords):
-        DepositCoin    = args[0]
-        DepositAddress = args[1] 
-    
-        coinLogo = pkg_resources.resource_filename(__name__, os.path.join('coinimg', DepositCoin + '.png'))
-        logo = Image.open(coinLogo)
-        basewidth = 100
-         
-        # adjust image size
-        wpercent = (basewidth/float(logo.size[0]))
-        hsize = int((float(logo.size[1])*float(wpercent)))
-        logo = logo.resize((basewidth, hsize))
-        
-        QRcode = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_H)
-        QRcode.add_data(DepositAddress)
-        QRcode.make()
+            try: 
+                if self.parentApp.DepositCoin:
+                    if not os.path.isfile(os.path.join(BASEDIR, self.parentApp.DepositCoin + ".img")): 
+                        qrimg = qrcode.make(self.parentApp.DepositAddress)
+                        qrimg.save(os.path.join(BASEDIR, self.parentApp.DepositCoin + ".img"))
+                    
+                    
+                    img = Image.open(os.path.join(BASEDIR, self.parentApp.DepositCoin + ".img"))
+                    img.show()
+                
+            except Exception as e:
+                npyscreen.notify_confirm(str(e), title="ERROR!", wide=True)
 
-        QRimg = QRcode.make_image(fill_color='Black', back_color="white").convert('RGB')
-         
-        # set size of QR code
-        pos = ((QRimg.size[0] - logo.size[0]) // 2,
-               (QRimg.size[1] - logo.size[1]) // 2)
         
-        QRimg.paste(logo, pos)
-        
-        # crop a bit
-        border = (0, 4, 0, 30) # left, top, right, bottom
-        QRimg = ImageOps.crop(QRimg, border)
-        
-        
-        # Next Process is adding and centering the Deposit address on the image
-        # Creating a background a little larger and pasting the QR
-        # Image onto it with the text
-        if len(DepositAddress) <= 50:
-            fontSize = 12
-        elif len(DepositAddress) <=75:
-            fontSize = 11
-        else:
-            fontSize = 10
-            
-        background = Image.new('RGBA', (QRimg.size[0], QRimg.size[1] + 15), (255,255,255,255))
-        robotoFont = ImageFont.truetype(pkg_resources.resource_filename(__name__, os.path.join('fonts', 'Roboto-BoldItalic.ttf')), fontSize)
-    
-        draw = ImageDraw.Draw(background)
-        w,h  = draw.textsize(DepositAddress)
-        draw.text(((QRimg.size[0]+15 - w)/2,QRimg.size[1]-2),DepositAddress, (0,0,0), font=robotoFont)
-        
-        background.paste(QRimg, (0,0))
-        background.save(os.path.join(IMGDIR, DepositCoin + ".png"))
-         
-        #display
-        img = Image.open(os.path.join(IMGDIR, DepositCoin + ".png"))
-        img.show()
-
 def main():
     global CONFIG
     CONFIG = read_configuration(CONFFILE)

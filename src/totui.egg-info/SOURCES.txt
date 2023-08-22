@@ -130,4 +130,5 @@ src/totui/fonts/Roboto-BoldItalic.ttf
 src/totui_selenium/__init__.py
 src/totui_selenium/totui_selenium.py
 src/tradeogre_api/__init__.py
+src/tradeogre_api/apitest.py
 src/tradeogre_api/tradeogre_api.py

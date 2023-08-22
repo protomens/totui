@@ -8,7 +8,7 @@ with open('README.md', encoding="utf-8") as f:
 
 setup(
     name='totui',
-    version='1.8.1',
+    version='1.9.0',
     description='TradeOgre TUI',
     long_description=readme,
     long_description_content_type="text/markdown",
@@ -16,7 +16,7 @@ setup(
     author_email='protomens@eratosthen.es',
     url='https://github.com/protomens/totui',
     license='MIT',
-    keywords='crypto tui tradeogre bitcoin monero haven dero',
+    keywords='crypto tui tradeogre bitcoin monero haven dero arrr',
     classifiers = [
         "Programming Language :: Python",
         "Programming Language :: Python :: 3",
