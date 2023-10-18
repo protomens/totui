@@ -34,6 +34,7 @@ class SeleniumTradeOgre():
             
         #CHROME
         print("\nNOTE: \n")
+        print("You must have an updated google chrome browser pre-installed\n")
         print("We will open a browser and log you into your account to handle certain operations\n")
         print("You will need to complete a CAPTCHA to login.\n")
         print("You will be prompted for your e-mail,password,and OTP within this console.\n")
@@ -53,6 +54,8 @@ class SeleniumTradeOgre():
     def createDriverInstance(self):
         options = Options()
         options.add_argument('--disable-infobars')
+        #options.add_argument('--headless')
+        #options = uc.ChromeOptions()
         mydriver = uc.Chrome(options=options)
         mydriver.get(BASEURL)
         sleep(random.randint(3,5))
